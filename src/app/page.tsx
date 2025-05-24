@@ -33,12 +33,6 @@ export default function HomePage() {
     );
   }, [searchTerm]);
 
-  if (!GOOGLE_MAPS_API_KEY) {
-    // Message is handled by APIProviderWrapper, but we can add a fallback here if needed
-    // or ensure the page structure is minimal if map isn't available.
-    // For now, assuming APIProviderWrapper handles the primary user notification.
-  }
-
   return (
     <div className="relative flex flex-col h-full">
       <div className="mb-4 relative">
@@ -51,16 +45,25 @@ export default function HomePage() {
           className="pl-10 w-full max-w-lg mx-auto shadow-sm"
         />
       </div>
-      <MapComponent
-        locations={filteredLocations}
-        onMarkerClick={handleMarkerClick}
-        selectedLocationId={selectedLocation?.id}
-      />
-      <LocationBottomSheet
-        location={selectedLocation}
-        isOpen={!!selectedLocation}
-        onOpenChange={handleSheetOpenChange}
-      />
+      {GOOGLE_MAPS_API_KEY ? (
+        <>
+          <MapComponent
+            locations={filteredLocations}
+            onMarkerClick={handleMarkerClick}
+            selectedLocationId={selectedLocation?.id}
+          />
+          <LocationBottomSheet
+            location={selectedLocation}
+            isOpen={!!selectedLocation}
+            onOpenChange={handleSheetOpenChange}
+          />
+        </>
+      ) : (
+        // The APIProviderWrapper already shows a prominent alert if the key is missing.
+        // Here, we simply don't render the map-dependent components.
+        // You could add a page-specific placeholder if desired.
+        null
+      )}
     </div>
   );
 }
