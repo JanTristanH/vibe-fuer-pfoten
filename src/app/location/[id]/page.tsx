@@ -21,27 +21,25 @@ export default function LocationDetailPage() {
   const [location, setLocation] = useState<Location | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { addBookmark, removeBookmark, bookmarkedLocations } = useBookmarks(); // Use bookmarkedLocations
+  const { addBookmark, removeBookmark, bookmarkedLocations } = useBookmarks();
   
   const [bookmarked, setBookmarked] = useState(false);
 
-  // Effect to load location data when 'id' changes
   useEffect(() => {
     if (id) {
       setIsLoading(true);
       const fetchedLocation = getLocationById(id);
-      setLocation(fetchedLocation || null); // Set to null if not found
+      setLocation(fetchedLocation || null);
       setIsLoading(false);
     }
   }, [id]);
 
-  // Effect to synchronize local 'bookmarked' state with global 'bookmarkedLocations'
   useEffect(() => {
     if (location) {
       const currentlyBookmarked = !!bookmarkedLocations.find(l => l.id === location.id);
       setBookmarked(currentlyBookmarked);
     } else {
-      setBookmarked(false); // If no location, not bookmarked
+      setBookmarked(false); 
     }
   }, [location, bookmarkedLocations]);
 
@@ -53,7 +51,8 @@ export default function LocationDetailPage() {
     } else {
       addBookmark(location);
     }
-    setBookmarked(!bookmarked); // Optimistically update UI
+    // Optimistic update removed: Let useEffect handle the state change
+    // setBookmarked(!bookmarked); 
   };
 
   if (isLoading) {

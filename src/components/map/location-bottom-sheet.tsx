@@ -18,7 +18,7 @@ interface LocationBottomSheetProps {
 }
 
 export default function LocationBottomSheet({ location, isOpen, onOpenChange }: LocationBottomSheetProps) {
-  const { addBookmark, removeBookmark, bookmarkedLocations } = useBookmarks(); // Use bookmarkedLocations directly
+  const { addBookmark, removeBookmark, bookmarkedLocations } = useBookmarks();
   const [bookmarked, setBookmarked] = useState(false);
 
   useEffect(() => {
@@ -26,10 +26,9 @@ export default function LocationBottomSheet({ location, isOpen, onOpenChange }: 
       const currentlyBookmarked = !!bookmarkedLocations.find(l => l.id === location.id);
       setBookmarked(currentlyBookmarked);
     } else if (!isOpen) {
-      // Optional: reset local state when sheet is closed, though re-evaluation on open is key
-      // setBookmarked(false); 
+      setBookmarked(false); 
     }
-  }, [location, bookmarkedLocations, isOpen]); // Depend on bookmarkedLocations, location, and isOpen
+  }, [location, bookmarkedLocations, isOpen]);
 
   const handleBookmarkToggle = () => {
     if (!location) return;
@@ -38,7 +37,8 @@ export default function LocationBottomSheet({ location, isOpen, onOpenChange }: 
     } else {
       addBookmark(location);
     }
-    setBookmarked(!bookmarked); // Optimistically update UI
+    // Optimistic update removed: Let useEffect handle the state change
+    // setBookmarked(!bookmarked); 
   };
 
   if (!location) return null;
