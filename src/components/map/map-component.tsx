@@ -1,3 +1,4 @@
+
 "use client";
 
 import type { Location } from '@/types';
@@ -38,9 +39,9 @@ export default function MapComponent({
             title={location.name}
           >
             <Pin
-              background={selectedLocationId === location.id ? 'var(--colors-accent)' : 'var(--colors-primary)'}
-              borderColor={selectedLocationId === location.id ? 'var(--colors-accent-foreground)' : 'var(--colors-primary-foreground)'}
-              glyphColor={selectedLocationId === location.id ? 'var(--colors-accent-foreground)' : 'var(--colors-primary-foreground)'}
+              background={selectedLocationId === location.id ? 'hsl(var(--accent))' : 'hsl(var(--primary))'}
+              borderColor={selectedLocationId === location.id ? 'hsl(var(--accent-foreground))' : 'hsl(var(--primary-foreground))'}
+              glyphColor={selectedLocationId === location.id ? 'hsl(var(--accent-foreground))' : 'hsl(var(--primary-foreground))'}
               scale={selectedLocationId === location.id ? 1.2 : 1}
             >
               <IceCream size={18} />
