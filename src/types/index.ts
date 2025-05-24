@@ -23,3 +23,11 @@ export interface Location {
   phone?: string;
   website?: string;
 }
+
+export interface CitySuggestion {
+  name: string;
+  coordinates: {
+    lat: number;
+    lng: number;
+  };
+}

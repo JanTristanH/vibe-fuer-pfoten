@@ -1,7 +1,8 @@
+
 "use client";
 
-import { useState, useMemo } from 'react';
-import type { Location } from '@/types';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import type { Location, CitySuggestion } from '@/types';
 import { locations } from '@/data/locations';
 import MapComponent from '@/components/map/map-component';
 import LocationBottomSheet from '@/components/map/location-bottom-sheet';
@@ -9,12 +10,48 @@ import { GOOGLE_MAPS_API_KEY } from '@/lib/config';
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 
+// Helper to extract city name from address (simple heuristic)
+const extractCityName = (address: string): string | null => {
+  const parts = address.split(',');
+  if (parts.length > 1) {
+    // Get the last part (usually "PostalCode City" or "City")
+    const cityAndMaybeCode = parts[parts.length - 1].trim();
+    // Remove 5-digit postal code if present
+    return cityAndMaybeCode.replace(/^\d{5}\s*/, '').trim();
+  }
+  return null;
+};
+
+const defaultMapCenter = { lat: 51.1657, lng: 10.4515 }; // Germany
+const defaultMapZoom = 6;
+
 export default function HomePage() {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
+  
+  const [mapCenter, setMapCenter] = useState(defaultMapCenter);
+  const [mapZoom, setMapZoom] = useState(defaultMapZoom);
+
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
+  const uniqueCities = useMemo((): CitySuggestion[] => {
+    const cityMap = new Map<string, CitySuggestion>();
+    locations.forEach(location => {
+      const cityName = extractCityName(location.address);
+      if (cityName && !cityMap.has(cityName)) {
+        cityMap.set(cityName, { name: cityName, coordinates: location.coordinates });
+      }
+    });
+    return Array.from(cityMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, []);
 
   const handleMarkerClick = (location: Location) => {
     setSelectedLocation(location);
+    setMapCenter(location.coordinates); // Center map on selected marker
+    // Optionally adjust zoom for a single marker, or keep current zoom
+    // setMapZoom(14); 
   };
 
   const handleSheetOpenChange = (isOpen: boolean) => {
@@ -25,25 +62,83 @@ export default function HomePage() {
   
   const filteredLocations = useMemo(() => {
     if (!searchTerm) return locations;
+    const lowerSearchTerm = searchTerm.toLowerCase();
     return locations.filter(location => 
-      location.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      location.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      location.brands.some(brand => brand.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      location.flavors.some(flavor => flavor.name.toLowerCase().includes(searchTerm.toLowerCase()))
+      location.name.toLowerCase().includes(lowerSearchTerm) ||
+      location.address.toLowerCase().includes(lowerSearchTerm) ||
+      location.brands.some(brand => brand.toLowerCase().includes(lowerSearchTerm)) ||
+      location.flavors.some(flavor => flavor.name.toLowerCase().includes(lowerSearchTerm))
     );
   }, [searchTerm]);
 
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const term = e.target.value;
+    setSearchTerm(term);
+    if (term) {
+      const matchingCities = uniqueCities.filter(city => 
+        city.name.toLowerCase().startsWith(term.toLowerCase())
+      );
+      setCitySuggestions(matchingCities);
+      setShowSuggestions(matchingCities.length > 0);
+    } else {
+      setCitySuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSuggestionClick = (city: CitySuggestion) => {
+    setSearchTerm(city.name);
+    setMapCenter(city.coordinates);
+    setMapZoom(11); // Zoom level for a city view
+    setShowSuggestions(false);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [searchContainerRef]);
+
+
   return (
     <div className="relative flex flex-col h-full">
-      <div className="mb-4 relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+      <div className="relative mb-4 w-full max-w-lg mx-auto" ref={searchContainerRef}>
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground z-10" />
         <Input
           type="text"
-          placeholder="Suche nach Name, Adresse, Marke oder Sorte..."
+          placeholder="Suche Stadt, Name, Adresse, Marke oder Sorte..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10 w-full max-w-lg mx-auto shadow-sm"
+          onChange={handleSearchChange}
+          onFocus={() => searchTerm && citySuggestions.length > 0 && setShowSuggestions(true)}
+          className="pl-10 w-full shadow-sm"
+          aria-autocomplete="list"
+          aria-controls="city-suggestions-list"
         />
+        {showSuggestions && citySuggestions.length > 0 && (
+          <ul 
+            id="city-suggestions-list"
+            className="absolute z-20 w-full bg-card border border-border rounded-md mt-1 shadow-lg max-h-60 overflow-y-auto"
+            role="listbox"
+          >
+            {citySuggestions.map((city) => (
+              <li
+                key={city.name}
+                onClick={() => handleSuggestionClick(city)}
+                className="px-4 py-2 hover:bg-accent hover:text-accent-foreground cursor-pointer text-sm"
+                role="option"
+                aria-selected={false} // Can be enhanced with keyboard navigation
+              >
+                {city.name}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
       {GOOGLE_MAPS_API_KEY ? (
         <>
@@ -51,6 +146,8 @@ export default function HomePage() {
             locations={filteredLocations}
             onMarkerClick={handleMarkerClick}
             selectedLocationId={selectedLocation?.id}
+            center={mapCenter}
+            zoom={mapZoom}
           />
           <LocationBottomSheet
             location={selectedLocation}
@@ -59,9 +156,6 @@ export default function HomePage() {
           />
         </>
       ) : (
-        // The APIProviderWrapper already shows a prominent alert if the key is missing.
-        // Here, we simply don't render the map-dependent components.
-        // You could add a page-specific placeholder if desired.
         null
       )}
     </div>
