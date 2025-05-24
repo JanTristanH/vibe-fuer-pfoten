@@ -2,21 +2,34 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import type { Location, CitySuggestion } from '@/types';
-import { locations } from '@/data/locations';
+import type { Location, RawLocation, CitySuggestion, RawFlavor, Flavor } from '@/types';
 import MapComponent from '@/components/map/map-component';
 import LocationBottomSheet from '@/components/map/location-bottom-sheet';
 import { GOOGLE_MAPS_API_KEY } from '@/lib/config';
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, AlertTriangle, WifiOff } from "lucide-react";
+import { iconStringMap, DefaultFlavorIcon } from '@/lib/icon-map';
+import { Skeleton } from '@/components/ui/skeleton';
 
-// Helper to extract city name from address (simple heuristic)
+const DATA_URL = 'https://raw.githubusercontent.com/JanTristanH/eis-f-r-pfoten-data/refs/heads/main/data.json';
+
+// Helper to rehydrate icons from string names to components
+const rehydrateLocations = (rawLocations: RawLocation[]): Location[] => {
+  return rawLocations.map(rawLoc => ({
+    ...rawLoc,
+    flavors: rawLoc.flavors.map(rawFlavor => ({
+      name: rawFlavor.name,
+      icon: iconStringMap[rawFlavor.icon] || DefaultFlavorIcon,
+      iconColor: rawFlavor.iconColor,
+    } as Flavor)),
+  }));
+};
+
 const extractCityName = (address: string): string | null => {
   const parts = address.split(',');
   if (parts.length > 1) {
-    // Get the last part (usually "PostalCode City" or "City")
     const cityAndMaybeCode = parts[parts.length - 1].trim();
-    // Remove 5-digit postal code if present
     return cityAndMaybeCode.replace(/^\d{5}\s*/, '').trim();
   }
   return null;
@@ -26,6 +39,9 @@ const defaultMapCenter = { lat: 51.1657, lng: 10.4515 }; // Germany
 const defaultMapZoom = 6;
 
 export default function HomePage() {
+  const [allLocations, setAllLocations] = useState<Location[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   
@@ -36,21 +52,45 @@ export default function HomePage() {
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
+  const fetchData = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(DATA_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const rawData: RawLocation[] = await response.json();
+      const processedLocations = rehydrateLocations(rawData);
+      setAllLocations(processedLocations);
+    } catch (e: any) {
+      console.error("Failed to fetch locations:", e);
+      setError(e.message || "Fehler beim Laden der Standorte. Bitte versuche es später erneut.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
   const uniqueCities = useMemo((): CitySuggestion[] => {
+    if (isLoading || error) return [];
     const cityMap = new Map<string, CitySuggestion>();
-    locations.forEach(location => {
+    allLocations.forEach(location => {
       const cityName = extractCityName(location.address);
       if (cityName && !cityMap.has(cityName)) {
         cityMap.set(cityName, { name: cityName, coordinates: location.coordinates });
       }
     });
     return Array.from(cityMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, []);
+  }, [allLocations, isLoading, error]);
 
   const handleMarkerClick = (location: Location) => {
     setSelectedLocation(location);
     setMapCenter(location.coordinates); 
-    setMapZoom(14); // Zoom in on marker click
+    setMapZoom(14);
   };
 
   const handleSheetOpenChange = (isOpen: boolean) => {
@@ -60,15 +100,15 @@ export default function HomePage() {
   };
   
   const filteredLocations = useMemo(() => {
-    if (!searchTerm) return locations;
+    if (!searchTerm) return allLocations;
     const lowerSearchTerm = searchTerm.toLowerCase();
-    return locations.filter(location => 
+    return allLocations.filter(location => 
       location.name.toLowerCase().includes(lowerSearchTerm) ||
       location.address.toLowerCase().includes(lowerSearchTerm) ||
       location.brands.some(brand => brand.toLowerCase().includes(lowerSearchTerm)) ||
       location.flavors.some(flavor => flavor.name.toLowerCase().includes(lowerSearchTerm))
     );
-  }, [searchTerm]);
+  }, [searchTerm, allLocations]);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const term = e.target.value;
@@ -82,16 +122,13 @@ export default function HomePage() {
     } else {
       setCitySuggestions([]);
       setShowSuggestions(false);
-      // Optionally reset map to default view when search is cleared
-      // setMapCenter(defaultMapCenter);
-      // setMapZoom(defaultMapZoom);
     }
   };
 
   const handleSuggestionClick = (city: CitySuggestion) => {
     setSearchTerm(city.name);
     setMapCenter(city.coordinates);
-    setMapZoom(11); // Zoom level for a city view
+    setMapZoom(11);
     setShowSuggestions(false);
   };
 
@@ -112,6 +149,33 @@ export default function HomePage() {
     };
   }, [searchContainerRef]);
 
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <div className="relative w-full max-w-lg mx-auto">
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <Skeleton className="h-[calc(100vh-200px)] md:h-[calc(100vh-250px)] w-full rounded-lg" />
+        <p className="text-center text-primary">Lade Standorte...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full py-10 text-center">
+        <WifiOff size={64} className="text-destructive mb-4" />
+        <h2 className="text-2xl font-semibold mb-2 text-destructive">Laden fehlgeschlagen</h2>
+        <p className="text-muted-foreground mb-6 max-w-md">
+          Die Standorte konnten nicht geladen werden. Bitte überprüfe deine Internetverbindung und versuche es erneut.
+        </p>
+        <p className="text-xs text-muted-foreground mb-4">({error})</p>
+        <Button onClick={fetchData} className="bg-accent hover:bg-accent/90 text-accent-foreground">
+          Erneut versuchen
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex flex-col h-full">
@@ -164,7 +228,14 @@ export default function HomePage() {
           />
         </>
       ) : (
-        null // APIProviderWrapper already handles showing an error message
+        // APIProviderWrapper shows its own error, but we can add a placeholder here too
+        <div className="flex flex-col items-center justify-center h-full text-center border-2 border-dashed rounded-lg p-8">
+          <AlertTriangle size={48} className="text-destructive mb-4" />
+          <h2 className="text-xl font-semibold text-destructive">Google Maps API Schlüssel fehlt</h2>
+          <p className="text-muted-foreground">
+            Die Karte kann nicht angezeigt werden, da der Google Maps API Schlüssel nicht konfiguriert ist.
+          </p>
+        </div>
       )}
     </div>
   );

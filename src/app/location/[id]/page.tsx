@@ -4,15 +4,31 @@
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { getLocationById } from '@/data/locations';
-import type { Location } from '@/types';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import type { Location, RawLocation, Flavor } from '@/types';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { MapPin, Clock, Phone, Globe, ExternalLink, Heart, Utensils, Tags, Building } from 'lucide-react';
+import { MapPin, Clock, Phone, Globe, ExternalLink, Heart, Utensils, Tags, WifiOff, AlertTriangle } from 'lucide-react';
 import FlavorTag from '@/components/location/flavor-tag';
 import { useBookmarks } from '@/context/bookmark-context';
 import { useEffect, useState } from 'react';
+import { iconStringMap, DefaultFlavorIcon } from '@/lib/icon-map';
+import { Skeleton } from '@/components/ui/skeleton';
+
+const DATA_URL = 'https://raw.githubusercontent.com/JanTristanH/eis-f-r-pfoten-data/refs/heads/main/data.json';
+
+// Helper to rehydrate a single location's icons
+const rehydrateSingleLocation = (rawLoc: RawLocation | undefined): Location | null => {
+  if (!rawLoc) return null;
+  return {
+    ...rawLoc,
+    flavors: rawLoc.flavors.map(rawFlavor => ({
+      name: rawFlavor.name,
+      icon: iconStringMap[rawFlavor.icon] || DefaultFlavorIcon,
+      iconColor: rawFlavor.iconColor,
+    } as Flavor)),
+  } as Location;
+};
 
 export default function LocationDetailPage() {
   const params = useParams();
@@ -20,18 +36,42 @@ export default function LocationDetailPage() {
   
   const [location, setLocation] = useState<Location | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const { addBookmark, removeBookmark, bookmarkedLocations } = useBookmarks();
-  
   const [bookmarked, setBookmarked] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      setIsLoading(true);
-      const fetchedLocation = getLocationById(id);
-      setLocation(fetchedLocation || null);
+  const fetchData = async () => {
+    if (!id) {
+      setError("Keine Standort-ID vorhanden.");
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(DATA_URL);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const rawData: RawLocation[] = await response.json();
+      const foundRawLocation = rawData.find(loc => loc.id === id);
+      const processedLocation = rehydrateSingleLocation(foundRawLocation);
+      setLocation(processedLocation);
+      if (!processedLocation) {
+        setError("Standort nicht gefunden.");
+      }
+    } catch (e: any) {
+      console.error("Failed to fetch location details:", e);
+      setError(e.message || "Fehler beim Laden der Standortdetails.");
+    } finally {
       setIsLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   useEffect(() => {
@@ -43,7 +83,6 @@ export default function LocationDetailPage() {
     }
   }, [location, bookmarkedLocations]);
 
-
   const handleBookmarkToggle = () => {
     if (!location) return;
     if (bookmarked) {
@@ -51,21 +90,72 @@ export default function LocationDetailPage() {
     } else {
       addBookmark(location);
     }
-    // Optimistic update removed: Let useEffect handle the state change
-    // setBookmarked(!bookmarked); 
   };
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <p className="text-xl text-primary">Lade Details...</p>
+      <div className="space-y-8">
+        <Card className="overflow-hidden shadow-xl">
+          <Skeleton className="w-full h-64 md:h-96 bg-muted" />
+          <CardContent className="p-6 grid md:grid-cols-3 gap-6">
+            <div className="md:col-span-2 space-y-6">
+              <Skeleton className="h-8 w-3/4 mb-3" />
+              <Skeleton className="h-20 w-full" />
+              <Separator />
+              <Skeleton className="h-8 w-1/2 mb-3" />
+              <div className="flex flex-wrap gap-3">
+                <Skeleton className="h-8 w-24 rounded-full" />
+                <Skeleton className="h-8 w-20 rounded-full" />
+                <Skeleton className="h-8 w-28 rounded-full" />
+              </div>
+              <Separator />
+               <Skeleton className="h-8 w-1/3 mb-3" />
+              <div className="flex flex-wrap gap-2">
+                <Skeleton className="h-8 w-20 rounded-lg" />
+                <Skeleton className="h-8 w-24 rounded-lg" />
+              </div>
+            </div>
+            <div className="md:col-span-1 space-y-4">
+              <Card className="shadow-md">
+                <CardHeader><Skeleton className="h-6 w-3/5" /></CardHeader>
+                <CardContent className="space-y-3">
+                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full" />
+                </CardContent>
+              </Card>
+              <Skeleton className="h-12 w-full rounded-md" />
+              <Skeleton className="h-10 w-full rounded-md" />
+            </div>
+          </CardContent>
+        </Card>
+         <p className="text-center text-primary">Lade Details...</p>
       </div>
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-10">
+         <WifiOff size={64} className="text-destructive mx-auto mb-4" />
+        <h2 className="text-2xl font-semibold mb-4 text-destructive">Fehler beim Laden</h2>
+        <p className="text-muted-foreground mb-6 max-w-md mx-auto">
+          Die Standortdetails konnten nicht geladen werden. Bitte versuche es später erneut.
+        </p>
+         <p className="text-xs text-muted-foreground mb-4">({error})</p>
+        <Button onClick={fetchData} className="bg-accent hover:bg-accent/90 text-accent-foreground mr-2">
+          Erneut versuchen
+        </Button>
+        <Button asChild variant="outline">
+          <Link href="/">Zurück zur Karte</Link>
+        </Button>
+      </div>
+    );
+  }
+  
   if (!location) {
     return (
       <div className="text-center py-10">
+        <AlertTriangle size={64} className="text-amber-500 mx-auto mb-4" />
         <h2 className="text-2xl font-semibold mb-4">Standort nicht gefunden</h2>
         <p className="text-muted-foreground mb-6">Der gesuchte Standort konnte leider nicht gefunden werden.</p>
         <Button asChild>
@@ -87,7 +177,7 @@ export default function LocationDetailPage() {
             layout="fill"
             objectFit="cover"
             className="bg-muted"
-            data-ai-hint={location.dataAiHint}
+            data-ai-hint={location.dataAiHint || 'storefront'}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"></div>
           <div className="absolute bottom-0 left-0 p-6">

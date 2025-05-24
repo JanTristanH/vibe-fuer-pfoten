@@ -1,24 +1,9 @@
 
 "use client";
 
-import type { Location, Flavor } from '@/types';
+import type { Location, RawFlavor, Flavor } from '@/types'; // Updated to include RawFlavor
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
-import type { Icon as LucideIcon } from 'lucide-react';
-
-// Import all necessary icons for rehydration
-import {
-  Drumstick,
-  Banana,
-  Fish,
-  Beef,
-  Carrot,
-  Grape,
-  Bird,
-  Milk,
-  IceCream,
-  Leaf,
-  Utensils,
-} from 'lucide-react';
+import { iconStringMap, DefaultFlavorIcon } from '@/lib/icon-map'; // Use shared icon map
 
 interface BookmarkContextType {
   bookmarkedLocations: Location[];
@@ -31,20 +16,24 @@ const BookmarkContext = createContext<BookmarkContextType | undefined>(undefined
 
 const BOOKMARKS_STORAGE_KEY = 'eisFuerPfotenBookmarks';
 
-const iconMap: Record<string, LucideIcon | React.FC<React.SVGProps<SVGSVGElement>>> = {
-  'Leberwurst': Drumstick,
-  'Banane-Erdnuss': Banana,
-  'Lachs': Fish,
-  'Rindfleisch': Beef,
-  'Karotte-Apfel': Carrot,
-  'Joghurt-Beere': Grape,
-  'Hühnchen': Bird,
-  'Erdbeer-Joghurt': Milk,
-  'Vanille (hundesicher)': IceCream,
-  'Thunfisch': Fish,
-  'Kokos-Ananas (Xylit-frei)': Leaf,
-  'Lebertran-Boost': Utensils,
+// Helper to rehydrate flavors (string icon to component icon)
+const rehydrateLocationFlavors = (location: Omit<Location, 'flavors'> & { flavors: (RawFlavor | Flavor)[] }): Location => {
+  return {
+    ...location,
+    flavors: location.flavors.map(flavor => {
+      if (typeof (flavor as RawFlavor).icon === 'string') { // Check if icon is a string (RawFlavor)
+        const IconComponent = iconStringMap[(flavor as RawFlavor).icon] || DefaultFlavorIcon;
+        return {
+          ...flavor,
+          icon: IconComponent,
+        } as Flavor;
+      }
+      // If flavor.icon is already a component or undefined, return as is (already a Flavor object)
+      return flavor as Flavor;
+    }),
+  } as Location;
 };
+
 
 export const BookmarkProvider = ({ children }: { children: ReactNode }) => {
   const [bookmarkedLocations, setBookmarkedLocations] = useState<Location[]>([]);
@@ -55,19 +44,14 @@ export const BookmarkProvider = ({ children }: { children: ReactNode }) => {
       const storedBookmarks = localStorage.getItem(BOOKMARKS_STORAGE_KEY);
       if (storedBookmarks) {
         try {
-          const parsedLocations: Omit<Location, 'flavors'> & { flavors: Omit<Flavor, 'icon'>[] }[] = JSON.parse(storedBookmarks);
+          // Assume stored flavors might have string icons if old data, or component if re-saved
+          const parsedLocations: (Omit<Location, 'flavors'> & { flavors: (RawFlavor | Flavor)[] })[] = JSON.parse(storedBookmarks);
           
-          const rehydratedLocations: Location[] = parsedLocations.map(location => ({
-            ...location,
-            flavors: location.flavors.map(flavor => ({
-              ...flavor,
-              icon: iconMap[flavor.name],
-            })),
-          } as Location));
+          const rehydratedLocations: Location[] = parsedLocations.map(rehydrateLocationFlavors);
           setBookmarkedLocations(rehydratedLocations);
         } catch (error) {
           console.error("Error parsing or rehydrating bookmarks from localStorage:", error);
-          localStorage.removeItem(BOOKMARKS_STORAGE_KEY);
+          localStorage.removeItem(BOOKMARKS_STORAGE_KEY); // Clear corrupted data
         }
       }
       setIsLoaded(true);
@@ -76,7 +60,18 @@ export const BookmarkProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (isLoaded && typeof window !== 'undefined') {
-      localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(bookmarkedLocations));
+      // Before saving, ensure flavor icons are strings if they are components
+      const storableLocations = bookmarkedLocations.map(location => ({
+        ...location,
+        flavors: location.flavors.map(flavor => {
+          const iconName = Object.keys(iconStringMap).find(key => iconStringMap[key] === flavor.icon);
+          return {
+            ...flavor,
+            icon: iconName || (flavor.icon ? 'DefaultFlavorIconString' : undefined), // Store string representation
+          };
+        }),
+      }));
+      localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(storableLocations));
     }
   }, [bookmarkedLocations, isLoaded]);
 
