@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { MapPin, ExternalLink, Heart } from 'lucide-react';
 import FlavorTag from './flavor-tag';
 import { useBookmarks } from '@/context/bookmark-context';
+import { Badge } from '@/components/ui/badge'; // Added import
 
 interface LocationCardProps {
   location: Location;
