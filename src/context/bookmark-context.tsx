@@ -95,6 +95,7 @@ export const BookmarkProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const isBookmarked = (locationId: string): boolean => {
+    // Corrected logic: find location where loc.id === locationId
     return !!bookmarkedLocations.find((loc) => loc.id === locationId);
   };
 

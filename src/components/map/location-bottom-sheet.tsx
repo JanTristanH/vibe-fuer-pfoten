@@ -51,7 +51,7 @@ export default function LocationBottomSheet({ location, isOpen, onOpenChange }: 
               onClick={handleBookmarkToggle}
               variant="ghost"
               size="icon"
-              className="text-primary hover:text-accent -mt-1 flex-shrink-0"
+              className="text-primary hover:text-accent -mt-1 flex-shrink-0 mr-6" // Added mr-6 for spacing
               aria-label={bookmarked ? "Von Lesezeichen entfernen" : "Zu Lesezeichen hinzufügen"}
             >
               <Heart size={24} fill={bookmarked ? 'currentColor' : 'none'} />
@@ -129,4 +129,3 @@ export default function LocationBottomSheet({ location, isOpen, onOpenChange }: 
     </Sheet>
   );
 }
-
