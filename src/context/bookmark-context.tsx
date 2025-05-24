@@ -2,7 +2,7 @@
 "use client";
 
 import type { Location, Flavor } from '@/types';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import type { Icon as LucideIcon } from 'lucide-react';
 
 // Import all necessary icons for rehydration
@@ -31,7 +31,6 @@ const BookmarkContext = createContext<BookmarkContextType | undefined>(undefined
 
 const BOOKMARKS_STORAGE_KEY = 'eisFuerPfotenBookmarks';
 
-// Define the icon map for rehydration
 const iconMap: Record<string, LucideIcon | React.FC<React.SVGProps<SVGSVGElement>>> = {
   'Leberwurst': Drumstick,
   'Banane-Erdnuss': Banana,
@@ -42,7 +41,7 @@ const iconMap: Record<string, LucideIcon | React.FC<React.SVGProps<SVGSVGElement
   'Hühnchen': Bird,
   'Erdbeer-Joghurt': Milk,
   'Vanille (hundesicher)': IceCream,
-  'Thunfisch': Fish, // Fish icon is used for Thunfisch as well
+  'Thunfisch': Fish,
   'Kokos-Ananas (Xylit-frei)': Leaf,
   'Lebertran-Boost': Utensils,
 };
@@ -58,49 +57,53 @@ export const BookmarkProvider = ({ children }: { children: ReactNode }) => {
         try {
           const parsedLocations: Omit<Location, 'flavors'> & { flavors: Omit<Flavor, 'icon'>[] }[] = JSON.parse(storedBookmarks);
           
-          // Rehydrate icons
           const rehydratedLocations: Location[] = parsedLocations.map(location => ({
             ...location,
             flavors: location.flavors.map(flavor => ({
               ...flavor,
-              icon: iconMap[flavor.name], // Assigns the component or undefined
+              icon: iconMap[flavor.name],
             })),
-          } as Location)); // Cast back to Location type
+          } as Location));
           setBookmarkedLocations(rehydratedLocations);
         } catch (error) {
           console.error("Error parsing or rehydrating bookmarks from localStorage:", error);
-          localStorage.removeItem(BOOKMARKS_STORAGE_KEY); // Clear corrupted data
+          localStorage.removeItem(BOOKMARKS_STORAGE_KEY);
         }
       }
       setIsLoaded(true);
     }
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []);
 
   useEffect(() => {
     if (isLoaded && typeof window !== 'undefined') {
-      // When saving, no need to do anything special, functions will be stripped by JSON.stringify
       localStorage.setItem(BOOKMARKS_STORAGE_KEY, JSON.stringify(bookmarkedLocations));
     }
   }, [bookmarkedLocations, isLoaded]);
 
-  const addBookmark = (location: Location) => {
+  const addBookmark = useCallback((location: Location) => {
     setBookmarkedLocations((prev) => {
-      if (prev.find(l => l.id === location.id)) return prev; // Avoid duplicates
+      if (prev.find(l => l.id === location.id)) return prev;
       return [...prev, location];
     });
-  };
+  }, []);
 
-  const removeBookmark = (locationId: string) => {
+  const removeBookmark = useCallback((locationId: string) => {
     setBookmarkedLocations((prev) => prev.filter((loc) => loc.id !== locationId));
-  };
+  }, []);
 
-  const isBookmarked = (locationId: string): boolean => {
-    // Corrected logic: find location where loc.id === locationId
+  const isBookmarked = useCallback((locationId: string): boolean => {
     return !!bookmarkedLocations.find((loc) => loc.id === locationId);
-  };
+  }, [bookmarkedLocations]);
+
+  const contextValue = useMemo(() => ({
+    bookmarkedLocations,
+    addBookmark,
+    removeBookmark,
+    isBookmarked,
+  }), [bookmarkedLocations, addBookmark, removeBookmark, isBookmarked]);
 
   return (
-    <BookmarkContext.Provider value={{ bookmarkedLocations, addBookmark, removeBookmark, isBookmarked }}>
+    <BookmarkContext.Provider value={contextValue}>
       {children}
     </BookmarkContext.Provider>
   );

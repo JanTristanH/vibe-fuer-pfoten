@@ -18,14 +18,18 @@ interface LocationBottomSheetProps {
 }
 
 export default function LocationBottomSheet({ location, isOpen, onOpenChange }: LocationBottomSheetProps) {
-  const { addBookmark, removeBookmark, isBookmarked } = useBookmarks();
+  const { addBookmark, removeBookmark, bookmarkedLocations } = useBookmarks(); // Use bookmarkedLocations directly
   const [bookmarked, setBookmarked] = useState(false);
 
   useEffect(() => {
-    if (location) {
-      setBookmarked(isBookmarked(location.id));
+    if (isOpen && location) {
+      const currentlyBookmarked = !!bookmarkedLocations.find(l => l.id === location.id);
+      setBookmarked(currentlyBookmarked);
+    } else if (!isOpen) {
+      // Optional: reset local state when sheet is closed, though re-evaluation on open is key
+      // setBookmarked(false); 
     }
-  }, [location, isBookmarked, isOpen]); // Re-check bookmark status when sheet opens or location changes
+  }, [location, bookmarkedLocations, isOpen]); // Depend on bookmarkedLocations, location, and isOpen
 
   const handleBookmarkToggle = () => {
     if (!location) return;
@@ -51,7 +55,7 @@ export default function LocationBottomSheet({ location, isOpen, onOpenChange }: 
               onClick={handleBookmarkToggle}
               variant="ghost"
               size="icon"
-              className="text-primary hover:text-accent -mt-1 flex-shrink-0 mr-6" // Added mr-6 for spacing
+              className="text-primary hover:text-accent -mt-1 flex-shrink-0 mr-6"
               aria-label={bookmarked ? "Von Lesezeichen entfernen" : "Zu Lesezeichen hinzufügen"}
             >
               <Heart size={24} fill={bookmarked ? 'currentColor' : 'none'} />

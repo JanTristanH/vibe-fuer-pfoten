@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useParams } from 'next/navigation';
@@ -20,26 +21,29 @@ export default function LocationDetailPage() {
   const [location, setLocation] = useState<Location | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const { addBookmark, removeBookmark, isBookmarked } = useBookmarks();
+  const { addBookmark, removeBookmark, bookmarkedLocations } = useBookmarks(); // Use bookmarkedLocations
   
   const [bookmarked, setBookmarked] = useState(false);
 
+  // Effect to load location data when 'id' changes
   useEffect(() => {
     if (id) {
+      setIsLoading(true);
       const fetchedLocation = getLocationById(id);
-      if (fetchedLocation) {
-        setLocation(fetchedLocation);
-        setBookmarked(isBookmarked(id));
-      }
+      setLocation(fetchedLocation || null); // Set to null if not found
       setIsLoading(false);
     }
-  }, [id, isBookmarked]);
+  }, [id]);
 
+  // Effect to synchronize local 'bookmarked' state with global 'bookmarkedLocations'
   useEffect(() => {
     if (location) {
-      setBookmarked(isBookmarked(location.id));
+      const currentlyBookmarked = !!bookmarkedLocations.find(l => l.id === location.id);
+      setBookmarked(currentlyBookmarked);
+    } else {
+      setBookmarked(false); // If no location, not bookmarked
     }
-  }, [isBookmarked, location]);
+  }, [location, bookmarkedLocations]);
 
 
   const handleBookmarkToggle = () => {
@@ -49,7 +53,7 @@ export default function LocationDetailPage() {
     } else {
       addBookmark(location);
     }
-    setBookmarked(!bookmarked);
+    setBookmarked(!bookmarked); // Optimistically update UI
   };
 
   if (isLoading) {
