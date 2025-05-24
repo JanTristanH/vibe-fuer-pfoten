@@ -49,9 +49,8 @@ export default function HomePage() {
 
   const handleMarkerClick = (location: Location) => {
     setSelectedLocation(location);
-    setMapCenter(location.coordinates); // Center map on selected marker
-    // Optionally adjust zoom for a single marker, or keep current zoom
-    // setMapZoom(14); 
+    setMapCenter(location.coordinates); 
+    setMapZoom(14); // Zoom in on marker click
   };
 
   const handleSheetOpenChange = (isOpen: boolean) => {
@@ -83,6 +82,9 @@ export default function HomePage() {
     } else {
       setCitySuggestions([]);
       setShowSuggestions(false);
+      // Optionally reset map to default view when search is cleared
+      // setMapCenter(defaultMapCenter);
+      // setMapZoom(defaultMapZoom);
     }
   };
 
@@ -91,6 +93,11 @@ export default function HomePage() {
     setMapCenter(city.coordinates);
     setMapZoom(11); // Zoom level for a city view
     setShowSuggestions(false);
+  };
+
+  const handleMapCameraChange = (newCenter: { lat: number; lng: number }, newZoom: number) => {
+    setMapCenter(newCenter);
+    setMapZoom(newZoom);
   };
 
   useEffect(() => {
@@ -132,7 +139,7 @@ export default function HomePage() {
                 onClick={() => handleSuggestionClick(city)}
                 className="px-4 py-2 hover:bg-accent hover:text-accent-foreground cursor-pointer text-sm"
                 role="option"
-                aria-selected={false} // Can be enhanced with keyboard navigation
+                aria-selected={false}
               >
                 {city.name}
               </li>
@@ -148,6 +155,7 @@ export default function HomePage() {
             selectedLocationId={selectedLocation?.id}
             center={mapCenter}
             zoom={mapZoom}
+            onCameraChange={handleMapCameraChange}
           />
           <LocationBottomSheet
             location={selectedLocation}
@@ -156,7 +164,7 @@ export default function HomePage() {
           />
         </>
       ) : (
-        null
+        null // APIProviderWrapper already handles showing an error message
       )}
     </div>
   );
